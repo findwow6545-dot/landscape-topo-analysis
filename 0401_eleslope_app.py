@@ -9,21 +9,23 @@ from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 import io
 
-# --- [1. 환경 설정 및 세련된 테마 적용] ---
+# --- [1. 환경 설정 및 테마 적용] ---
 st.set_page_config(page_title="Topography Analysis Pro", layout="wide", initial_sidebar_state="expanded")
 
-# Custom CSS로 인터페이스 고도화
+# 전문적인 인터페이스를 위한 CSS 설정
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #007bff; color: white; }
-    .stAlert { border-radius: 10px; }
-    .footer { position: fixed; bottom: 0; width: 100%; text-align: center; color: #6c757d; padding: 10px; background: rgba(255,255,255,0.8); font-size: 14px; }
-    h1 { color: #1e3a8a; font-family: 'Malgun Gothic'; }
-    h3 { border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
+    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
+    .stTabs [data-baseweb="tab"] { height: 50px; white-space: pre-wrap; font-weight: bold; font-size: 16px; }
+    .footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #6c757d; padding: 10px; background: rgba(255,255,255,0.9); font-size: 14px; z-index: 100; border-top: 1px solid #dee2e6; }
+    h1 { color: #1e3a8a; }
+    h3 { border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; margin-top: 20px; }
     </style>
     """, unsafe_allow_html=True)
 
+# 한글 폰트 설정
 try:
     plt.rcParams['font.family'] = 'Malgun Gothic'
 except:
@@ -64,37 +66,34 @@ def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_are
     ax.axis('off')
     ax.set_title(f"📊 통계 (총 면적: {total_area:,.1f}㎡)", fontsize=12, pad=15, fontweight='bold')
 
-# --- [3. 사이드바 인터페이스] ---
+# --- [3. 사이드바 구성] ---
 with st.sidebar:
-    st.image("https://www.mokpo.ac.kr/images/kor/main/logo.png", width=200) # 목포대 로고(예시)
-    st.header("🛠️ Analysis Engine")
+    st.header("🛠️ 분석 엔진 설정")
     
     with st.form("analysis_form"):
-        up_file = st.file_uploader("DXF 도면 업로드", type=["dxf"])
-        st.divider()
+        up_file = st.file_uploader("DXF 도면 파일 업로드", type=["dxf"])
+        st.markdown("---")
         res_val = st.slider("분석 해상도 (Grid)", 50, 400, 250)
-        elev_cnt = st.number_input("표고 범례 구간", 3, 20, 10)
-        slope_step = st.number_input("경사 간격 (도)", 1, 15, 5)
-        aspect_cnt = st.selectbox("향 분석 방위", [4, 8, 16], index=1)
-        mask_opacity = st.slider("경계 밖 마스킹 (%)", 0, 100, 50)
+        elev_cnt = st.number_input("표고 범례 구간 수", 3, 20, 10)
+        slope_step = st.number_input("경사 범례 간격 (도)", 1, 15, 5)
+        aspect_cnt = st.selectbox("향 분석 방위 설정", [4, 8, 16], index=1)
+        mask_opacity = st.slider("경계 외부 마스킹 (%)", 0, 100, 50)
         
         submit_btn = st.form_submit_button("🚀 종합 분석 실행")
 
-    st.divider()
+    st.markdown("---")
     st.info(f"""
-    **[Developer Information]** **제작자:** 박지환 교수  
-    **소속:** 국립목포대학교 조경학과  
-    **문의:** jhpark@mokpo.ac.kr
+    **[시스템 제작자]** **박지환 교수** (국립목포대학교 조경학과)  
+    전문 지형 분석 알고리즘 탑재 v2.0
     """)
 
 # --- [4. 메인 화면 구성] ---
 st.title("🗺️ Landscape Topography Analysis Pro")
-st.caption("고정밀 등고선 데이터를 활용한 조경 설계 지형 종합 분석 시스템")
+st.caption("고정밀 수치지형 데이터를 활용한 조경 설계 의사결정 지원 시스템")
 
 if 'final_data' not in st.session_state:
     st.session_state.final_data = None
 
-# 데이터 처리 로직 (이전과 동일하지만 정돈됨)
 CONTOUR_LAYERS = ["F0017111", "F0017114"]
 BOUNDARY_LAYER = "0대상지경계"
 
@@ -102,7 +101,7 @@ if up_file is not None and submit_btn:
     try:
         raw_data = up_file.getvalue()
         memory_stream = io.BytesIO(raw_data)
-        with st.spinner("전문 엔진 가동 중... 잠시만 기다려 주십시오."):
+        with st.spinner("전문 엔진이 지형 데이터를 정밀 분석 중입니다..."):
             try:
                 doc, auditor = recover.read(memory_stream)
             except:
@@ -112,7 +111,7 @@ if up_file is not None and submit_btn:
             msp = doc.modelspace()
             boundary_entities = msp.query(f'LWPOLYLINE[layer=="{BOUNDARY_LAYER}"]')
             if not boundary_entities:
-                st.error(f"❌ 레이어 오류: '{BOUNDARY_LAYER}'가 도면에 없습니다."); st.stop()
+                st.error(f"❌ 도면 오류: '{BOUNDARY_LAYER}' 레이어가 존재하지 않습니다."); st.stop()
             
             b_poly = list(boundary_entities[0].get_points(format='xy'))
             if b_poly[0] != b_poly[-1]: b_poly.append(b_poly[0])
@@ -132,14 +131,13 @@ if up_file is not None and submit_btn:
                 'mask_alpha': mask_opacity / 100.0, 'b_poly': b_poly, 'b_path': b_path
             }
     except Exception as e:
-        st.error(f"⚠️ 시스템 오류 발생: {str(e)}")
+        st.error(f"⚠️ 시스템 오류: {str(e)}")
 
-# --- [5. 분석 결과 대시보드] ---
+# --- [5. 결과 대시보드] ---
 if st.session_state.final_data:
     fd = st.session_state.final_data
     v_pts, d_res, b_poly, b_path, m_alpha = fd['pts'], fd['res'], fd['b_poly'], fd['b_path'], fd['mask_alpha']
     
-    # 격자 및 지형 보간 (이전 로직 동일)
     bx_raw, by_raw = zip(*b_poly)
     xmin, xmax, ymin, ymax = min(bx_raw), max(bx_raw), min(by_raw), max(by_raw)
     padding = max(xmax-xmin, ymax-ymin) * 0.15
@@ -153,11 +151,11 @@ if st.session_state.final_data:
     combined_path = Path([(xmin-padding, ymin-padding), (xmax+padding, ymin-padding), (xmax+padding, ymax+padding), (xmin-padding, ymax+padding), (xmin-padding, ymin-padding)] + b_poly, 
                          [Path.MOVETO] + [Path.LINETO]*4 + [Path.MOVETO] + [Path.LINETO]*(len(b_poly)-1))
 
-    # 전문적인 Tab 구조 도입
+    # 전문 Tab UI
     tab1, tab2, tab3, tab4 = st.tabs(["⛰️ 표고 분석", "📐 경사 분석", "🧭 향 분석", "📝 종합 리포트"])
 
     with tab1:
-        st.subheader("표고 분석 결과 (Elevation)")
+        st.subheader("01. 표고 분석 (Elevation Analysis)")
         Z_final = np.where(mask, Z, np.nan)
         z_min, z_max = np.nanmin(Z_final), np.nanmax(Z_final)
         z_levels = np.linspace(z_min, z_max, fd['elev_cnt'] + 1)
@@ -169,7 +167,7 @@ if st.session_state.final_data:
         st.pyplot(fig1)
 
     with tab2:
-        st.subheader("경사 분석 결과 (Slope)")
+        st.subheader("02. 경사 분석 (Slope Analysis)")
         dx, dy = np.gradient(Z, (xi[1]-xi[0]), (yi[1]-yi[0]))
         slope = np.degrees(np.arctan(np.sqrt(dx**2 + dy**2)))
         slope_final = np.where(mask, slope, np.nan)
@@ -184,7 +182,7 @@ if st.session_state.final_data:
         st.pyplot(fig2)
 
     with tab3:
-        st.subheader("향 분석 결과 (Aspect)")
+        st.subheader("03. 향 분석 (Aspect Analysis)")
         aspect = np.degrees(np.arctan2(-dx, dy)); aspect = np.mod(aspect, 360)
         aspect_final = np.where(mask, aspect, np.nan)
         a_cnt = fd['aspect_cnt']
@@ -200,22 +198,21 @@ if st.session_state.final_data:
         st.pyplot(fig3)
 
     with tab4:
-        st.subheader("종합 분석 요약 리포트")
+        st.subheader("04. 종합 분석 리포트")
         total_site_area = np.sum(~np.isnan(Z_final)) * cell_area
         col1, col2, col3 = st.columns(3)
         col1.metric("대상지 총 면적", f"{total_site_area:,.1f} ㎡")
         col2.metric("평균 경사도", f"{np.nanmean(slope_final):.1f} °")
         col3.metric("최고 표고", f"{z_max:.1f} m")
-        
-        st.success(f"**분석 완료:** 본 리포트는 국립목포대학교 조경학과 박지환 교수의 분석 엔진을 통해 생성되었습니다.")
-        st.download_button("📂 텍스트 리포트 저장", f"대상지 총면적: {total_site_area:,.1f}㎡\n평균경사: {np.nanmean(slope_final):.1f}도", file_name="topo_report.txt")
-
-# --- [6. 푸터 정보 표기] ---
-st.markdown(f"""
-    <div class="footer">
-        © 2026 Landscape Analysis System | Created by <b>박지환 교수 (국립목포대학교 조경학과)</b>
-    </div>
-    """, unsafe_allow_html=True)
+        st.success(f"**전문 분석 엔진 가동 결과:** 본 데이터는 국립목포대학교 박지환 교수의 알고리즘에 의해 정밀 산출되었습니다.")
+        st.download_button("📂 텍스트 결과 저장", f"총면적: {total_site_area:,.1f}㎡\n평균경사: {np.nanmean(slope_final):.1f}도", file_name="report.txt")
 
 else:
-    st.info("👈 사이드바에서 DXF 도면을 업로드하고 [종합 분석 실행] 버튼을 클릭해 주세요.")
+    st.info("👈 사이드바의 설정창에서 DXF 도면을 업로드하고 [종합 분석 실행]을 클릭하십시오.")
+
+# --- [6. 공식 푸터 표기] ---
+st.markdown(f"""
+    <div class="footer">
+        © 2026 Landscape Topography Analysis Engine | Developed by <b>박지환 교수 (국립목포대학교 조경학과)</b>
+    </div>
+    """, unsafe_allow_html=True)
