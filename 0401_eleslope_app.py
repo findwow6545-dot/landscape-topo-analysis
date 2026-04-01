@@ -12,10 +12,9 @@ import io
 import requests
 import os
 
-# --- [1. 한글 폰트 강제 설치 로직] ---
+# --- [1. 한글 폰트 자동 로드 엔진] ---
 @st.cache_resource
 def load_korean_font():
-    # 나눔고딕 폰트 다운로드 (서버 환경 대응)
     font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
     font_path = "NanumGothic.ttf"
     if not os.path.exists(font_path):
@@ -23,7 +22,6 @@ def load_korean_font():
         with open(font_path, "wb") as f:
             f.write(res.content)
     
-    # Matplotlib에 폰트 등록
     fe = fm.FontEntry(fname=font_path, name='NanumGothic')
     fm.fontManager.ttflist.insert(0, fe)
     plt.rcParams['font.family'] = fe.name
@@ -32,22 +30,24 @@ def load_korean_font():
 
 font_name = load_korean_font()
 
-# --- [2. 전문 테마 CSS] ---
-st.set_page_config(page_title="Topography Analysis Pro", layout="wide")
+# --- [2. 전문 테마 및 레이아웃 CSS] ---
+st.set_page_config(page_title="Site Analysis System", layout="wide")
 
-st.markdown(f"""
+st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap');
-    html, body, [class*="css"] {{ font-family: 'Nanum Gothic', sans-serif; }}
-    .main {{ background-color: #f8f9fa; }}
-    .stButton>button {{ width: 100%; border-radius: 5px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }}
-    .footer {{ position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #6c757d; padding: 10px; background: rgba(255,255,255,0.9); font-size: 14px; z-index: 100; border-top: 1px solid #dee2e6; }}
-    h1 {{ color: #1e3a8a; }}
-    h3 {{ border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; margin-top: 20px; }}
+    html, body, [class*="css"] { font-family: 'Nanum Gothic', sans-serif; }
+    .main { background-color: #f1f5f9; }
+    .stButton>button { width: 100%; border-radius: 6px; height: 3.5em; background-color: #1e40af; color: white; font-weight: bold; border: none; }
+    .stButton>button:hover { background-color: #1e3a8a; border: 1px solid #ffffff; }
+    .footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #475569; padding: 12px; background: rgba(255,255,255,0.95); font-size: 13px; z-index: 100; border-top: 2px solid #cbd5e1; }
+    h1 { color: #0f172a; font-weight: 800; letter-spacing: -0.5px; }
+    h3 { border-left: 6px solid #1e40af; padding-left: 12px; color: #1e293b; margin-top: 24px; font-weight: bold; }
+    .stMetric { background: white; padding: 15px; border-radius: 10px; border: 1px solid #e2e8f0; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- [3. 공통 함수: 범례 및 면적 계산] ---
+# --- [3. 분석 핵심 함수] ---
 def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_area, is_aspect=False):
     boundaries = norm.boundaries
     valid_data = data_array[~np.isnan(data_array)]
@@ -81,26 +81,26 @@ def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_are
     ax.set_xlim(0, 15)
     ax.set_ylim(0, max(len(boundaries) - 1, 1))
     ax.axis('off')
-    ax.set_title(f"현황 통계 (총 면적: {total_area:,.1f} m2)", fontsize=12, pad=15, fontweight='bold')
+    ax.set_title(f"현황 통계 (Total Area: {total_area:,.1f} m2)", fontsize=12, pad=15, fontweight='bold')
 
-# --- [4. 사이드바 설정] ---
+# --- [4. 사이드바 인터페이스 (용어 변경)] ---
 with st.sidebar:
-    st.header("🛠️ 지형 분석 설정")
+    st.header("⚙️ 표고/경사/향 분석")
     with st.form("analysis_form"):
         up_file = st.file_uploader("DXF 도면 파일 업로드", type=["dxf"])
         st.markdown("---")
-        res_val = st.slider("분석 정밀도", 50, 400, 250)
+        res_val = st.slider("분석도면 해상도", 50, 400, 250)
         elev_cnt = st.number_input("표고 범례 구간 수", 3, 20, 10)
         slope_step = st.number_input("경사 범례 간격 (도)", 1, 15, 5)
         aspect_cnt = st.selectbox("향 분석 방위 설정", [4, 8, 16], index=1)
-        mask_opacity = st.slider("경계 밖 마스킹 (%)", 0, 100, 50)
+        mask_opacity = st.slider("White Masking (%)", 0, 100, 50)
         submit_btn = st.form_submit_button("🚀 종합 분석 실행")
 
     st.markdown("---")
-    st.info(f"**[시스템 제작자]**\n**박지환 교수**\n국립목포대학교 조경학과")
+    st.info(f"**[System Developer]**\n**박지환 교수**\n국립목포대학교 조경학과")
 
 # --- [5. 메인 화면 구성] ---
-st.title("🗺️ 조경설계 지형 종합 분석 시스템")
+st.title("🗺️ Site Analysis System for Landscape Plan")
 st.caption("Developed by Prof. Jihwan Park, Mokpo National University")
 
 if 'final_data' not in st.session_state:
@@ -113,7 +113,7 @@ if up_file is not None and submit_btn:
     try:
         raw_data = up_file.getvalue()
         memory_stream = io.BytesIO(raw_data)
-        with st.spinner("지형 데이터를 정밀 분석 중입니다..."):
+        with st.spinner("전문 엔진이 지형 데이터를 정밀 분석 중입니다..."):
             try:
                 doc, auditor = recover.read(memory_stream)
             except:
@@ -145,7 +145,7 @@ if up_file is not None and submit_btn:
     except Exception as e:
         st.error(f"⚠️ 시스템 오류: {str(e)}")
 
-# --- [6. 결과 대시보드 출력] ---
+# --- [6. 분석 대시보드] ---
 if st.session_state.final_data:
     fd = st.session_state.final_data
     v_pts, d_res, b_poly, b_path, m_alpha = fd['pts'], fd['res'], fd['b_poly'], fd['b_path'], fd['mask_alpha']
@@ -211,14 +211,14 @@ if st.session_state.final_data:
         st.pyplot(fig3)
 
     with tab4:
-        st.subheader("04. 종합 리포트")
+        st.subheader("04. 종합 분석 리포트")
         total_site_area = np.sum(~np.isnan(Z_final)) * cell_area
         col1, col2, col3 = st.columns(3)
         col1.metric("대상지 면적", f"{total_site_area:,.1f} m2")
         col2.metric("평균 경사", f"{np.nanmean(slope_final):.1f} 도")
         col3.metric("최고 표고", f"{z_max:.1f} m")
         st.info(f"**시스템 정보:** 국립목포대학교 박지환 교수 지형 분석 엔진 가동 중")
-        st.download_button("📂 분석 리포트 저장", f"면적: {total_site_area:,.1f}m2\n평균경사: {np.nanmean(slope_final):.1f}도", file_name="topo_report.txt")
+        st.download_button("📂 결과 데이터 저장", f"면적: {total_site_area:,.1f}m2\n평균경사: {np.nanmean(slope_final):.1f}도", file_name="topo_report.txt")
 
     st.markdown(f'<div class="footer">© 2026 Landscape Analysis Pro | Created by <b>박지환 교수 (국립목포대학교 조경학과)</b></div>', unsafe_allow_html=True)
 else:
