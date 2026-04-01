@@ -56,7 +56,7 @@ def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_are
     ax.set_title(f"구간별 현황 (총 면적: {total_area:,.1f}㎡)", fontsize=11, pad=10)
 
 # --- [3. 메인 인터페이스] ---
-st.title("📑 조경설계 지형 종합 분석 보고서")
+st.title("📑 조경설계 표고/경사/향 분석- 목포대학교 조경학과 박지환교수")
 
 if 'final_data' not in st.session_state:
     st.session_state.final_data = None
