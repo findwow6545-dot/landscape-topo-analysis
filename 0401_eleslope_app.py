@@ -68,10 +68,10 @@ def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_are
 
 # --- [3. 사이드바 구성] ---
 with st.sidebar:
-    st.header("🛠️ 분석 엔진 설정")
+    st.header("🛠️ 표고분석/경사분석/향분석")
     
     with st.form("analysis_form"):
-        up_file = st.file_uploader("DXF 도면 파일 업로드", type=["dxf"])
+        up_file = st.file_uploader("DXF 도면 파일 업로드(수치지형도)", type=["dxf"])
         st.markdown("---")
         res_val = st.slider("분석 해상도 (Grid)", 50, 400, 250)
         elev_cnt = st.number_input("표고 범례 구간 수", 3, 20, 10)
