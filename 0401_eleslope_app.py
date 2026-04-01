@@ -12,7 +12,7 @@ import io
 import requests
 import os
 
-# --- [1. 한글 폰트 자동 로드 엔진] ---
+# --- [1. 한글 폰트 자동 로드 및 설정] ---
 @st.cache_resource
 def load_korean_font():
     font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
@@ -37,15 +37,16 @@ def load_korean_font():
 load_korean_font()
 
 # --- [2. 전문 테마 CSS] ---
-st.set_page_config(page_title="Site Analysis System", layout="wide")
+st.set_page_config(page_title="Site Analysis System", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 6px; height: 3.5em; background-color: #1e40af; color: white; font-weight: bold; }
-    .footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #475569; padding: 10px; background: rgba(255,255,255,0.9); font-size: 13px; z-index: 100; border-top: 1px solid #dee2e6; }
+    .main { background-color: #f1f5f9; }
+    .stButton>button { width: 100%; border-radius: 6px; height: 3.5em; background-color: #1e40af; color: white; font-weight: bold; border: none; }
+    .stButton>button:hover { background-color: #1e3a8a; }
+    .footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #475569; padding: 12px; background: rgba(255,255,255,0.95); font-size: 13px; z-index: 100; border-top: 2px solid #cbd5e1; }
     h1 { color: #0f172a; font-weight: 800; }
-    .intro-box { text-align: center; padding: 40px; background: white; border-radius: 15px; border: 1px solid #e2e8f0; margin-bottom: 20px; }
+    .intro-container { text-align: center; padding: 20px; background: white; border-radius: 15px; border: 1px solid #e2e8f0; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -61,74 +62,47 @@ with st.sidebar:
         aspect_cnt = st.selectbox("향 분석 방위 설정", [4, 8, 16], index=1)
         mask_opacity = st.slider("White Masking (%)", 0, 100, 50)
         submit_btn = st.form_submit_button("🚀 종합 분석 실행")
+    
+    st.markdown("---")
     st.info(f"**[System Developer]**\n**박지환 교수**\n국립목포대학교 조경학과")
 
-# --- [4. 메인 화면 헤더] ---
+# --- [4. 메인 헤더] ---
 st.title("🗺️ Site Analysis System for Landscape Plan")
 st.caption("Developed by Prof. Jihwan Park, Mokpo National University")
 
-# 세션 상태 초기화
+# 데이터가 없는 초기 상태인지 확인
 if 'final_data' not in st.session_state:
     st.session_state.final_data = None
 
-# --- [5. 데이터 처리 로직 (버튼 클릭 시)] ---
-if up_file is not None and submit_btn:
-    try:
-        raw_data = up_file.getvalue()
-        memory_stream = io.BytesIO(raw_data)
-        with st.spinner("전문 엔진이 데이터를 정밀 분석 중입니다..."):
-            try:
-                doc, auditor = recover.read(memory_stream)
-            except:
-                memory_stream.seek(0)
-                doc = ezdxf.read(memory_stream)
-            
-            msp = doc.modelspace()
-            boundary_entities = msp.query('LWPOLYLINE[layer=="0대상지경계"]')
-            if not boundary_entities:
-                st.error("❌ '0대상지경계' 레이어를 찾을 수 없습니다."); st.stop()
-            
-            b_poly = list(boundary_entities[0].get_points(format='xy'))
-            if b_poly[0] != b_poly[-1]: b_poly.append(b_poly[0])
-            b_path = Path(b_poly)
+# --- [5. 초기 화면 분기 로직] ---
 
-            all_pts = []
-            CONTOUR_LAYERS = ["F0017111", "F0017114"]
-            for entity in msp.query('LWPOLYLINE POLYLINE LINE'):
-                if entity.dxf.layer in CONTOUR_LAYERS:
-                    z = entity.dxf.elevation if hasattr(entity.dxf, 'elevation') else 0
-                    if z == 0 and entity.dxftype() == 'LWPOLYLINE':
-                        p_list = list(entity.get_points()); z = p_list[0][2] if p_list and len(p_list[0]) > 2 else 0
-                    for p in list(entity.get_points(format='xy')): all_pts.append((p[0], p[1], z))
-
-            # 분석 데이터 세션에 저장
-            st.session_state.final_data = {
-                'pts': np.array(all_pts), 'res': res_val, 
-                'elev_cnt': elev_cnt, 'slope_step': slope_step, 'aspect_cnt': aspect_cnt,
-                'mask_alpha': mask_opacity / 100.0, 'b_poly': b_poly, 'b_path': b_path
-            }
-    except Exception as e:
-        st.error(f"⚠️ 시스템 오류: {str(e)}")
-
-# --- [6. 화면 렌더링 분기] ---
-
-# 상황 A: 아직 데이터가 없을 때 (초기 화면)
 if st.session_state.final_data is None:
+    # 상황 A: 분석 실행 전 (멋진 GIS 이미지 출력)
+    st.markdown('<div class="intro-container">', unsafe_allow_html=True)
+    
+    # [이미지 경로 설정] GitHub에 올린 이미지 파일명으로 변경하세요.
+    # 예: "Gemini_Generated_Image.png"
+    # 파일이 아직 없다면 주석처리된 URL을 테스트용으로 쓰셔도 됩니다.
+    try:
+        st.image("Gemini_Generated_Image.png", 
+                 caption="Landscape Analysis Engine - Decision Support System", 
+                 use_container_width=True)
+    except:
+        st.warning("초기 화면 이미지를 찾을 수 없습니다. GitHub 저장소에 'Gemini_Generated_Image.png' 파일을 추가해 주세요.")
+        st.info("파일 업로드 전에는 이 메시지가 표시됩니다.")
+        
     st.markdown("""
-        <div class="intro-box">
-            <h2>Welcome to Landscape Analysis Engine</h2>
-            <p>DXF 도면을 업로드하면 3D 지형 보간을 통해 정밀한 분석 리포트를 생성합니다.</p>
-        </div>
+        <h3>Engine Standby...</h3>
+        <p>왼쪽 사이드바에서 DXF 도면을 업로드하고 설정을 마친 뒤 <b>[종합 분석 실행]</b> 버튼을 클릭하십시오.</p>
+    </div>
     """, unsafe_allow_html=True)
-    # 초기 시각화 이미지 (박지환 교수님께서 요청하신 지형 랜드스케이프 스타일)
-    st.image("https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1200&q=80", 
-             caption="Topography Visualization & Decision Support System", use_container_width=True)
 
-# 상황 B: 분석 데이터가 있을 때 (초기 이미지는 사라지고 결과 출력)
 else:
+    # 상황 B: 분석 결과가 있을 때 (초기 이미지는 사라지고 결과 출력)
     fd = st.session_state.final_data
     v_pts, d_res, b_poly, b_path, m_alpha = fd['pts'], fd['res'], fd['b_poly'], fd['b_path'], fd['mask_alpha']
     
+    # 격자 생성 및 보간 (안정적인 로직)
     bx_raw, by_raw = zip(*b_poly)
     xmin, xmax, ymin, ymax = min(bx_raw), max(bx_raw), min(by_raw), max(by_raw)
     padding = max(xmax-xmin, ymax-ymin) * 0.15
@@ -144,10 +118,10 @@ else:
     outer_sq = [(xlim_tmp[0], ylim_tmp[0]), (xlim_tmp[1], ylim_tmp[0]), (xlim_tmp[1], ylim_tmp[1]), (xlim_tmp[0], ylim_tmp[1]), (xlim_tmp[0], ylim_tmp[0])]
     combined_path = Path(outer_sq + b_poly, [Path.MOVETO] + [Path.LINETO]*4 + [Path.MOVETO] + [Path.LINETO]*(len(b_poly)-1))
 
-    # 결과 대시보드 탭 구성
+    # 분석 결과 Tab UI
     tab1, tab2, tab3, tab4 = st.tabs(["⛰️ 표고 분석", "📐 경사 분석", "🧭 향 분석", "📝 종합 리포트"])
 
-    # --- [공통 범례 함수 정의] ---
+    # 범례 및 차트 출력 함수 (안정성 확보)
     def draw_categorical_legend(ax, cmap, norm, unit, data_array, cell_area, is_aspect=False):
         boundaries = norm.boundaries
         valid_data = data_array[~np.isnan(data_array)]
@@ -157,15 +131,15 @@ else:
             count = np.sum((valid_data >= lower) & (valid_data < upper))
             area = count * cell_area
             percentage = (area / total_area * 100) if total_area > 0 else 0
-            rect = plt.Rectangle((0, i), 1, 1, facecolor=cmap(i), edgecolor='black', linewidth=0.5)
-            ax.add_patch(rect)
+            ax.add_patch(plt.Rectangle((0, i), 1, 1, facecolor=cmap(i), edgecolor='black', linewidth=0.5))
             label = f"{int(lower)}~{int(upper)}{unit} : {area:,.1f}m2 ({percentage:.1f}%)"
             if is_aspect:
-                asp_lbls = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+                asp_lbls = ["북(N)", "북동(NE)", "동(E)", "남동(SE)", "남(S)", "남서(SW)", "서(W)", "북서(NW)"]
                 label = f"{asp_lbls[i]} : {area:,.1f}m2 ({percentage:.1f}%)"
             ax.text(1.2, i + 0.5, label, va='center', fontsize=10, fontweight='bold')
         ax.set_xlim(0, 15); ax.set_ylim(0, len(boundaries)-1); ax.axis('off')
 
+    # --- 각 탭별 시각화 ---
     with tab1:
         st.subheader("01. 표고 분석 (Elevation)")
         Z_final = np.where(mask, Z, np.nan)
@@ -207,10 +181,53 @@ else:
         st.pyplot(fig3)
 
     with tab4:
-        st.subheader("04. 종합 리포트")
+        st.subheader("04. 종합 분석 요약 리포트")
         total_site_area = np.sum(~np.isnan(Z_final)) * cell_area
-        st.metric("대상지 면적", f"{total_site_area:,.1f} m2")
-        st.info(f"분석 엔진: 국립목포대학교 박지환 교수")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("대상지 면적", f"{total_site_area:,.1f} m2")
+        col2.metric("평균 경사", f"{np.nanmean(slope_final):.1f} 도")
+        col3.metric("최고 표고", f"{z_max:.1f} m")
+        st.success(f"**박지환 교수 지형 분석 엔진 가동 완료**")
+
+# --- [6. 데이터 처리 엔진 (버튼 클릭 이벤트)] ---
+if up_file is not None and submit_btn:
+    try:
+        raw_data = up_file.getvalue()
+        memory_stream = io.BytesIO(raw_data)
+        with st.spinner("전문 분석 엔진 가동 중..."):
+            try:
+                doc, auditor = recover.read(memory_stream)
+            except:
+                memory_stream.seek(0)
+                doc = ezdxf.read(memory_stream)
+            
+            msp = doc.modelspace()
+            boundary_entities = msp.query('LWPOLYLINE[layer=="0대상지경계"]')
+            if not boundary_entities:
+                st.error("❌ 도면 내 '0대상지경계' 레이어가 없습니다."); st.stop()
+            
+            b_poly = list(boundary_entities[0].get_points(format='xy'))
+            if b_poly[0] != b_poly[-1]: b_poly.append(b_poly[0])
+            b_path = Path(b_poly)
+
+            all_pts = []
+            CONTOUR_LAYERS = ["F0017111", "F0017114"]
+            for entity in msp.query('LWPOLYLINE POLYLINE LINE'):
+                if entity.dxf.layer in CONTOUR_LAYERS:
+                    z = entity.dxf.elevation if hasattr(entity.dxf, 'elevation') else 0
+                    if z == 0 and entity.dxftype() == 'LWPOLYLINE':
+                        p_list = list(entity.get_points()); z = p_list[0][2] if p_list and len(p_list[0]) > 2 else 0
+                    for p in list(entity.get_points(format='xy')): all_pts.append((p[0], p[1], z))
+
+            # 분석 결과 세션 저장 및 화면 리프레시
+            st.session_state.final_data = {
+                'pts': np.array(all_pts), 'res': res_val, 
+                'elev_cnt': elev_cnt, 'slope_step': slope_step, 'aspect_cnt': aspect_cnt,
+                'mask_alpha': mask_opacity / 100.0, 'b_poly': b_poly, 'b_path': b_path
+            }
+            st.rerun()
+    except Exception as e:
+        st.error(f"시스템 오류: {str(e)}")
 
 # --- [7. 공식 푸터] ---
 st.markdown(f'<div class="footer">© 2026 Landscape Analysis Pro | Created by <b>박지환 교수 (국립목포대학교 조경학과)</b></div>', unsafe_allow_html=True)
