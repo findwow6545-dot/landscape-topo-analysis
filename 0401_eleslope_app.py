@@ -9,40 +9,56 @@ from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 import matplotlib.font_manager as fm
 import io
+import requests
+import os
 
-# --- [1. 환경 설정 및 전문 테마 CSS] ---
-st.set_page_config(page_title="Topography Analysis Pro", layout="wide", initial_sidebar_state="expanded")
+# --- [1. 한글 폰트 강제 설치 로직] ---
+@st.cache_resource
+def load_korean_font():
+    # 나눔고딕 폰트 다운로드 (서버 환경 대응)
+    font_url = "https://github.com/google/fonts/raw/main/ofl/nanumgothic/NanumGothic-Regular.ttf"
+    font_path = "NanumGothic.ttf"
+    if not os.path.exists(font_path):
+        res = requests.get(font_url)
+        with open(font_path, "wb") as f:
+            f.write(res.content)
+    
+    # Matplotlib에 폰트 등록
+    fe = fm.FontEntry(fname=font_path, name='NanumGothic')
+    fm.fontManager.ttflist.insert(0, fe)
+    plt.rcParams['font.family'] = fe.name
+    plt.rcParams['axes.unicode_minus'] = False
+    return fe.name
 
-# [폰트 해결] 특수기호 네모 현상 방지를 위한 시스템 폰트 강제 설정
-plt.rcParams['axes.unicode_minus'] = False
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = ['Arial', 'DejaVu Sans', 'Liberation Sans', 'sans-serif']
+font_name = load_korean_font()
 
-st.markdown("""
+# --- [2. 전문 테마 CSS] ---
+st.set_page_config(page_title="Topography Analysis Pro", layout="wide")
+
+st.markdown(f"""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }
-    .stTabs [data-baseweb="tab-list"] { gap: 24px; }
-    .stTabs [data-baseweb="tab"] { height: 50px; font-weight: bold; font-size: 16px; }
-    .footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #6c757d; padding: 10px; background: rgba(255,255,255,0.9); font-size: 14px; z-index: 100; border-top: 1px solid #dee2e6; }
-    h1 { color: #1e3a8a; }
-    h3 { border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; margin-top: 20px; }
+    @import url('https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700&display=swap');
+    html, body, [class*="css"] {{ font-family: 'Nanum Gothic', sans-serif; }}
+    .main {{ background-color: #f8f9fa; }}
+    .stButton>button {{ width: 100%; border-radius: 5px; height: 3em; background-color: #1e3a8a; color: white; font-weight: bold; }}
+    .footer {{ position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #6c757d; padding: 10px; background: rgba(255,255,255,0.9); font-size: 14px; z-index: 100; border-top: 1px solid #dee2e6; }}
+    h1 {{ color: #1e3a8a; }}
+    h3 {{ border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; margin-top: 20px; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- [2. 공통 함수: 범례 및 면적 계산] ---
+# --- [3. 공통 함수: 범례 및 면적 계산] ---
 def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_area, is_aspect=False):
     boundaries = norm.boundaries
     valid_data = data_array[~np.isnan(data_array)]
     total_area = len(valid_data) * cell_area
     
-    # ㎡ 기호 대신 m2 사용 (깨짐 방지)
     def get_aspect_label(idx, total_steps):
-        labels_8 = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        labels_4 = ["N", "E", "S", "W"]
+        labels_8 = ["북(N)", "북동(NE)", "동(E)", "남동(SE)", "남(S)", "남서(SW)", "서(W)", "북서(NW)"]
+        labels_4 = ["북(N)", "동(E)", "남(S)", "서(W)"]
         if total_steps == 8: return labels_8[idx]
         elif total_steps == 4: return labels_4[idx]
-        else: return f"Dir {idx+1}"
+        else: return f"방위 {idx+1}"
 
     for i in range(len(boundaries) - 1):
         lower, upper = boundaries[i], boundaries[i+1]
@@ -57,35 +73,34 @@ def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_are
             direction_name = get_aspect_label(i, len(boundaries)-1)
             label = f"{direction_name} : {area:,.1f} m2 ({percentage:.1f}%)"
         else:
-            # deg 기호 대신 deg 텍스트 사용
-            u_txt = "m" if unit == "m" else "deg"
+            u_txt = "m" if unit == "m" else "도"
             label = f"{int(lower)}~{int(upper)}{u_txt} : {area:,.1f} m2 ({percentage:.1f}%)"
         
-        ax.text(1.2, i + 0.5, label, va='center', fontsize=10, fontweight='bold', family='sans-serif')
+        ax.text(1.2, i + 0.5, label, va='center', fontsize=10, fontweight='bold')
         
     ax.set_xlim(0, 15)
     ax.set_ylim(0, max(len(boundaries) - 1, 1))
     ax.axis('off')
-    ax.set_title(f"Statistics (Total Area: {total_area:,.1f} m2)", fontsize=12, pad=15, fontweight='bold')
+    ax.set_title(f"현황 통계 (총 면적: {total_area:,.1f} m2)", fontsize=12, pad=15, fontweight='bold')
 
-# --- [3. 사이드바 설정] ---
+# --- [4. 사이드바 설정] ---
 with st.sidebar:
-    st.header("🛠️ Analysis Engine")
+    st.header("🛠️ 지형 분석 설정")
     with st.form("analysis_form"):
-        up_file = st.file_uploader("DXF Drawing Upload", type=["dxf"])
+        up_file = st.file_uploader("DXF 도면 파일 업로드", type=["dxf"])
         st.markdown("---")
-        res_val = st.slider("Grid Resolution", 50, 400, 250)
-        elev_cnt = st.number_input("Elevation Steps", 3, 20, 10)
-        slope_step = st.number_input("Slope Step (deg)", 1, 15, 5)
-        aspect_cnt = st.selectbox("Aspect Directions", [4, 8, 16], index=1)
-        mask_opacity = st.slider("Masking Opacity (%)", 0, 100, 50)
-        submit_btn = st.form_submit_button("🚀 Run Analysis")
+        res_val = st.slider("분석 정밀도", 50, 400, 250)
+        elev_cnt = st.number_input("표고 범례 구간 수", 3, 20, 10)
+        slope_step = st.number_input("경사 범례 간격 (도)", 1, 15, 5)
+        aspect_cnt = st.selectbox("향 분석 방위 설정", [4, 8, 16], index=1)
+        mask_opacity = st.slider("경계 밖 마스킹 (%)", 0, 100, 50)
+        submit_btn = st.form_submit_button("🚀 종합 분석 실행")
 
     st.markdown("---")
-    st.info(f"**[System Developer]**\n**Prof. Jihwan Park**\nMokpo National Univ.\nDept. of Landscape Architecture")
+    st.info(f"**[시스템 제작자]**\n**박지환 교수**\n국립목포대학교 조경학과")
 
-# --- [4. 메인 화면 구성] ---
-st.title("🗺️ Landscape Topography Analysis Pro")
+# --- [5. 메인 화면 구성] ---
+st.title("🗺️ 조경설계 지형 종합 분석 시스템")
 st.caption("Developed by Prof. Jihwan Park, Mokpo National University")
 
 if 'final_data' not in st.session_state:
@@ -98,7 +113,7 @@ if up_file is not None and submit_btn:
     try:
         raw_data = up_file.getvalue()
         memory_stream = io.BytesIO(raw_data)
-        with st.spinner("Analyzing terrain data..."):
+        with st.spinner("지형 데이터를 정밀 분석 중입니다..."):
             try:
                 doc, auditor = recover.read(memory_stream)
             except:
@@ -108,7 +123,7 @@ if up_file is not None and submit_btn:
             msp = doc.modelspace()
             boundary_entities = msp.query(f'LWPOLYLINE[layer=="{BOUNDARY_LAYER}"]')
             if not boundary_entities:
-                st.error(f"Error: Layer '{BOUNDARY_LAYER}' not found."); st.stop()
+                st.error(f"❌ 도면 오류: '{BOUNDARY_LAYER}' 레이어가 없습니다."); st.stop()
             
             b_poly = list(boundary_entities[0].get_points(format='xy'))
             if b_poly[0] != b_poly[-1]: b_poly.append(b_poly[0])
@@ -128,9 +143,9 @@ if up_file is not None and submit_btn:
                 'mask_alpha': mask_opacity / 100.0, 'b_poly': b_poly, 'b_path': b_path
             }
     except Exception as e:
-        st.error(f"System Error: {str(e)}")
+        st.error(f"⚠️ 시스템 오류: {str(e)}")
 
-# --- [5. 결과 대시보드 출력] ---
+# --- [6. 결과 대시보드 출력] ---
 if st.session_state.final_data:
     fd = st.session_state.final_data
     v_pts, d_res, b_poly, b_path, m_alpha = fd['pts'], fd['res'], fd['b_poly'], fd['b_path'], fd['mask_alpha']
@@ -150,10 +165,10 @@ if st.session_state.final_data:
     outer_sq = [(xlim_tmp[0], ylim_tmp[0]), (xlim_tmp[1], ylim_tmp[0]), (xlim_tmp[1], ylim_tmp[1]), (xlim_tmp[0], ylim_tmp[1]), (xlim_tmp[0], ylim_tmp[0])]
     combined_path = Path(outer_sq + b_poly, [Path.MOVETO] + [Path.LINETO]*4 + [Path.MOVETO] + [Path.LINETO]*(len(b_poly)-1))
 
-    tab1, tab2, tab3, tab4 = st.tabs(["⛰️ Elevation", "📐 Slope", "🧭 Aspect", "📝 Summary"])
+    tab1, tab2, tab3, tab4 = st.tabs(["⛰️ 표고 분석", "📐 경사 분석", "🧭 향 분석", "📝 종합 리포트"])
 
     with tab1:
-        st.subheader("01. Elevation Analysis (m)")
+        st.subheader("01. 표고 분석 (Elevation)")
         Z_final = np.where(mask, Z, np.nan)
         z_min, z_max = np.nanmin(Z_final), np.nanmax(Z_final)
         z_levels = np.linspace(z_min, z_max, fd['elev_cnt'] + 1)
@@ -165,7 +180,7 @@ if st.session_state.final_data:
         st.pyplot(fig1)
 
     with tab2:
-        st.subheader("02. Slope Analysis (deg)")
+        st.subheader("02. 경사 분석 (Slope)")
         dx, dy = np.gradient(Z, (xi[1]-xi[0]), (yi[1]-yi[0]))
         slope = np.degrees(np.arctan(np.sqrt(dx**2 + dy**2)))
         slope_final = np.where(mask, slope, np.nan)
@@ -173,14 +188,14 @@ if st.session_state.final_data:
         s_levels = np.arange(0, s_max + fd['slope_step'], fd['slope_step'])
         s_cnt = len(s_levels) - 1
         fig2, ax2 = plt.subplots(1, 2, figsize=(16, 6), gridspec_kw={'width_ratios': [1.3, 2.7]})
-        draw_categorical_legend_with_area(ax2[0], plt.get_cmap('YlOrRd', s_cnt), BoundaryNorm(s_levels, ncolors=256), "deg", slope_final, cell_area)
+        draw_categorical_legend_with_area(ax2[0], plt.get_cmap('YlOrRd', s_cnt), BoundaryNorm(s_levels, ncolors=256), "도", slope_final, cell_area)
         ax2[1].imshow(slope, extent=(min(xi), max(xi), min(yi), max(yi)), origin='lower', cmap='YlOrRd', norm=BoundaryNorm(s_levels, ncolors=256), aspect='equal')
         ax2[1].add_patch(PathPatch(combined_path, facecolor='white', alpha=m_alpha, edgecolor='none', zorder=5))
         ax2[1].plot(bx_raw, by_raw, color='red', linewidth=2, zorder=10)
         st.pyplot(fig2)
 
     with tab3:
-        st.subheader("03. Aspect Analysis")
+        st.subheader("03. 향 분석 (Aspect)")
         aspect = np.degrees(np.arctan2(-dx, dy)); aspect = np.mod(aspect, 360)
         aspect_final = np.where(mask, aspect, np.nan)
         a_cnt = fd['aspect_cnt']
@@ -196,15 +211,15 @@ if st.session_state.final_data:
         st.pyplot(fig3)
 
     with tab4:
-        st.subheader("04. Analysis Report")
+        st.subheader("04. 종합 리포트")
         total_site_area = np.sum(~np.isnan(Z_final)) * cell_area
         col1, col2, col3 = st.columns(3)
-        col1.metric("Site Area", f"{total_site_area:,.1f} m2")
-        col2.metric("Avg Slope", f"{np.nanmean(slope_final):.1f} deg")
-        col3.metric("Peak Elev", f"{z_max:.1f} m")
-        st.info(f"**Analysis Report generated by Prof. Jihwan Park's Algorithm**")
-        st.download_button("📂 Download CSV Report", f"Area: {total_site_area:,.1f}m2\nAvg Slope: {np.nanmean(slope_final):.1f}deg", file_name="topo_report.txt")
+        col1.metric("대상지 면적", f"{total_site_area:,.1f} m2")
+        col2.metric("평균 경사", f"{np.nanmean(slope_final):.1f} 도")
+        col3.metric("최고 표고", f"{z_max:.1f} m")
+        st.info(f"**시스템 정보:** 국립목포대학교 박지환 교수 지형 분석 엔진 가동 중")
+        st.download_button("📂 분석 리포트 저장", f"면적: {total_site_area:,.1f}m2\n평균경사: {np.nanmean(slope_final):.1f}도", file_name="topo_report.txt")
 
-    st.markdown(f'<div class="footer">© 2026 Topography Analysis Engine | Created by <b>Prof. Jihwan Park (Mokpo National Univ.)</b></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="footer">© 2026 Landscape Analysis Pro | Created by <b>박지환 교수 (국립목포대학교 조경학과)</b></div>', unsafe_allow_html=True)
 else:
-    st.info("👈 Please upload a DXF file and click [Run Analysis] to begin.")
+    st.info("👈 사이드바에서 DXF 도면을 업로드하고 설정을 마친 뒤 [종합 분석 실행]을 클릭하세요.")
