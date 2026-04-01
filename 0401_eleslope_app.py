@@ -12,6 +12,38 @@ import io
 # --- [1. 환경 설정 및 전문 테마 CSS] ---
 st.set_page_config(page_title="Topography Analysis Pro", layout="wide", initial_sidebar_state="expanded")
 
+# [폰트 해결 핵심 로직] 리눅스 서버 및 윈도우 환경 공통 한글 설정
+def set_korean_font():
+    try:
+        # 1. 서버 환경에서 사용 가능한 폰트 리스트 확인
+        font_list = fm.findSystemFonts(fontpaths=None, fontext='ttf')
+        
+        # 2. 한글을 지원할 가능성이 높은 폰트 우선순위 설정
+        target_fonts = ['NanumGothic', 'NanumBarunGothic', 'Malgun Gothic', 'DejaVu Sans', 'Arial Unicode MS']
+        
+        selected_font = None
+        for target in target_fonts:
+            for font_path in font_list:
+                if target.lower() in font_path.lower():
+                    selected_font = target
+                    break
+            if selected_font: break
+        
+        if selected_font:
+            plt.rcParams['font.family'] = selected_font
+        else:
+            # 폰트를 못 찾을 경우 기본 산세리프 폰트 사용 (네모 방지)
+            plt.rcParams['font.family'] = 'sans-serif'
+            
+    except Exception as e:
+        plt.rcParams['font.family'] = 'sans-serif'
+
+    # 마이너스 기호 깨짐 방지
+    plt.rcParams['axes.unicode_minus'] = False
+
+set_korean_font()
+
+# 인터페이스 디자인 (CSS)
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
@@ -19,16 +51,10 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] { gap: 24px; }
     .stTabs [data-baseweb="tab"] { height: 50px; font-weight: bold; font-size: 16px; }
     .footer { position: fixed; bottom: 0; left: 0; width: 100%; text-align: center; color: #6c757d; padding: 10px; background: rgba(255,255,255,0.9); font-size: 14px; z-index: 100; border-top: 1px solid #dee2e6; }
-    h1 { color: #1e3a8a; }
-    h3 { border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; margin-top: 20px; }
+    h1 { color: #1e3a8a; font-weight: 800; }
+    h3 { border-left: 5px solid #1e3a8a; padding-left: 10px; color: #334155; margin-top: 20px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
-
-try:
-    plt.rcParams['font.family'] = 'Malgun Gothic'
-except:
-    plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['axes.unicode_minus'] = False
 
 # --- [2. 공통 함수: 범례 및 면적 계산] ---
 def draw_categorical_legend_with_area(ax, cmap, norm, unit, data_array, cell_area, is_aspect=False):
